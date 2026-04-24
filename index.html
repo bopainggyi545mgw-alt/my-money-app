@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Tracker Pro</title>
+    <!-- Chart.js Library ချိတ်ဆက်ခြင်း (ဂရပ်အတွက် အရေးကြီးသည်) -->
+    <script src="https://jsdelivr.net"></script>
+    <style>
+        :root { --main-green: #1b5e20; --light-green: #2e7d32; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding-bottom: 80px; overflow-x: hidden; transition: 0.3s; }
+        .screen { display: none; width: 100%; min-height: 100vh; animation: fadeIn 0.4s; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Splash Screen */
+        #splash-screen { background: var(--main-green); display: flex; align-items: center; justify-content: center; color: white; flex-direction: column; }
+        .logo { font-size: 80px; animation: bounce 2s infinite; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #afffaf; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-top: 20px; }
+
+        /* Login Screen */
+        .login-container { padding: 40px 25px; background: white; height: 100vh; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; }
+        .login-container input { width: 100%; padding: 15px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 12px; box-sizing: border-box; }
+        .main-btn { background: var(--main-green); color: white; border: none; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .guest-btn { background: #f0f0f0; border: none; padding: 15px; border-radius: 12px; margin-top: 10px; cursor: pointer; }
+
+        /* Dashboard Header */
+        .header { background: linear-gradient(135deg, var(--main-green), var(--light-green)); color: white; padding: 40px 20px; border-radius: 0 0 30px 30px; text-align: center; }
+        .stats-row { display: flex; justify-content: space-around; margin-top: 20px; }
+
+        /* Content Cards */
+        .chart-container, .transaction-section, .report-card { background: white; margin: 20px; padding: 20px; border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+
+        /* Modal */
+        .modal-screen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; }
+        .modal-content { background: white; position: absolute; bottom: 0; width: 100%; border-radius: 30px 30px 0 0; padding: 25px; box-sizing: border-box; }
+        .grid-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .cat-item { padding: 10px; border: 1px solid #eee; border-radius: 15px; text-align: center; cursor: pointer; font-size: 12px; }
+        .cat-item.selected { background: #e8f5e9; border-color: var(--main-green); color: var(--main-green); font-weight: bold; }
+
+        /* Bottom Nav */
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: white; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #eee; z-index: 100; }
+        .nav-item { text-align: center; color: #888; font-size: 11px; cursor: pointer; }
+        .add-btn-main { background: var(--main-green); color: white; width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-top: -40px; border: 5px solid white; box-shadow: 0 5px 10px rgba(0,0,0,0.2); }
+
+        /* History & Dark Mode */
+        .history-item { display: flex; justify-content: space-between; padding: 15px; background: white; margin-bottom: 10px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        body.dark-mode { background: #121212; color: #eee; }
+        body.dark-mode .login-container, body.dark-mode .chart-container, body.dark-mode .transaction-section, body.dark-mode .modal-content, body.dark-mode .bottom-nav, body.dark-mode .history-item { background: #1e1e1e; color: white; border-color: #333; }
+        
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+    </style>
+</head>
+<body>
+
+<!-- 1. Splash Screen -->
+<div id="splash-screen" class="screen active">
+    <div class="logo">📈</div>
+    <h1 id="splash-name">ငွေစာရင်း မှတ်တမ်း</h1>
+    <div class="loader"></div>
+</div>
+
+<!-- 2. Login Screen -->
+<div id="login-screen" class="screen">
+    <div class="login-container">
+        <h2 id="login-welcome">ပြန်လည်ကြိုဆိုပါတယ်! 👏</h2>
+        <p id="login-subtitle">ဆက်လက်အသုံးပြုရန် အကောင့်ဝင်ပါ</p>
+        <input type="text" placeholder="Email / Phone">
+        <input type="password" placeholder="Password">
+        <button class="main-btn" id="btn-login" onclick="navigateTo('main-dashboard')">အကောင့်ဝင်မည်</button>
+        <button class="guest-btn" id="btn-guest" onclick="navigateTo('main-dashboard')">ဧည့်သည်အဖြစ် ဆက်သွားမည်</button>
+    </div>
+</div>
+
+<!-- 3. Dashboard -->
+<div id="main-dashboard" class="screen">
+    <div class="header">
+        <p id="txt-balance-label">စုစုပေါင်း လက်ကျန်ငွေ</p>
+        <h1 id="balance">0 ကျပ်</h1>
+        <div class="stats-row">
+            <div class="stat-box">
+                <small id="txt-income-label">ရရှိငွေ</small>
+                <p id="totalIncome">+0</p>
+            </div>
+            <div class="stat-box">
+                <small id="txt-expense-label">အသုံးပြုငွေ</small>
+                <p id="totalExpense">-0</p>
+            </div>
+        </div>
+    </div>
+    <div class="chart-container">
+        <h3 id="txt-overview-label">ယခုလ အကျဉ်းချုပ်</h3>
+        <canvas id="myChart"></canvas>
+    </div>
+    <div class="transaction-section">
+        <h3 id="txt-recent-label">လတ်တလော စာရင်းများ</h3>
+        <ul id="expenseList" style="list-style:none; padding:0;"></ul>
+    </div>
+</div>
+
+<!-- 4. Add Modal -->
+<div id="add-modal" class="modal-screen">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeAddModal()" style="float:right; font-size:24px; cursor:pointer;">×</span>
+        <h3 id="txt-add-title">စာရင်းအသစ်ထည့်မည်</h3>
+        <input type="number" id="newAmount" placeholder="ပမာဏ (ကျပ်)" style="width:100%; font-size:30px; border:none; text-align:center; margin:20px 0; outline:none;">
+        <div class="grid-container">
+            <div class="cat-item" onclick="selectCat('အစားအသောက်')">🍔<br>စားစရိတ်</div>
+            <div class="cat-item" onclick="selectCat('လမ်းစရိတ်')">🚕<br>ခရီးစရိတ်</div>
+            <div class="cat-item" onclick="selectCat('အိမ်စရိတ်')">🏠<br>အိမ်စရိတ်</div>
+            <div class="cat-item" onclick="selectCat('Skin Care')">✨<br>အလှအပ</div>
+            <div class="cat-item" onclick="selectCat('မိသားစုပေးငွေ')">💖<br>ရရှိငွေ</div>
+            <div class="cat-item" onclick="selectCat('အထွေထွေ')">📦<br>အခြား</div>
+        </div>
+        <input type="hidden" id="selectedCategory" value="အထွေထွေ">
+        <input type="date" id="newDate" style="width:100%; padding:10px; margin-bottom:10px;">
+        <input type="text" id="newNote" placeholder="မှတ်ချက်" style="width:100%; padding:10px; margin-bottom:15px;">
+        <button class="save-btn" id="btn-save" onclick="saveNewExpense()">စာရင်းသိမ်းမည်</button>
+    </div>
+</div>
+
+<!-- 5. History Screen -->
+<div id="history-screen" class="screen">
+    <div class="header" style="padding:20px; border-radius:0;"><h3 id="nav-his-title">မှတ်တမ်း</h3></div>
+    <div id="fullHistoryList" style="padding:20px;"></div>
+</div>
+
+<!-- 6. Settings Screen -->
+<div id="settings-screen" class="screen">
+    <div class="header" style="padding:20px; border-radius:0;"><h3 id="nav-set-title">ဆက်တင်</h3></div>
+    <div style="padding:20px;">
+        <div class="setting-item"><span>Language / ဘာသာစကား</span><select id="langSelect" onchange="changeLanguage()"><option value="my">မြန်မာ</option><option value="en">English</option></select></div>
+        <div class="setting-item"><span>Dark Mode 🌙</span><button onclick="toggleDarkMode()">On/Off</button></div>
+        <button class="main-btn" style="background:red; margin-top:20px;" onclick="clearAllData()">Clear All Data</button>
+    </div>
+</div>
+
+<!-- Bottom Navigation -->
+<div id="bottom-nav" class="bottom-nav" style="display:none">
+    <div class="nav-item" onclick="navigateTo('main-dashboard')">🏠<br><small id="nav-home">ပင်မ</small></div>
+    <div class="nav-item" onclick="navigateTo('history-screen')">📜<br><small id="nav-his">မှတ်တမ်း</small></div>
+    <div class="add-btn-main" onclick="openAddModal()">+</div>
+    <div class="nav-item" onclick="navigateTo('settings-screen')">⚙️<br><small id="nav-set">ဆက်တင်</small></div>
+</div>
+
+<script>
+    let expenses = JSON.parse(localStorage.getItem('proTracker')) || [];
+    let myPieChart;
+
+    const translations = {
+        en: {
+            splash: "Money Tracker", welcome: "Welcome Back!", btnLogin: "Login", balanceL: "Total Balance",
+            incomeL: "Income", expenseL: "Expenses", overviewL: "This Month Overview", recentL: "Recent Transactions",
+            addTitle: "Add Transaction", btnSave: "Save Transaction", home: "Home", his: "History", set: "Settings"
+        },
+        my: {
+            splash: "ငွေစာရင်း မှတ်တမ်း", welcome: "ပြန်လည်ကြိုဆိုပါတယ်!", btnLogin: "အကောင့်ဝင်မည်", balanceL: "စုစုပေါင်း လက်ကျန်ငွေ",
+            incomeL: "ရရှိငွေ", expenseL: "အသုံးပြုငွေ", overviewL: "ယခုလ အကျဉ်းချုပ်", recentL: "လတ်တလော စာရင်းများ",
+            addTitle: "စာရင်းအသစ်ထည့်မည်", btnSave: "စာရင်းသိမ်းမည်", home: "ပင်မ", his: "မှတ်တမ်း", set: "ဆက်တင်"
+        }
+    };
+
+    function navigateTo(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        document.getElementById('bottom-nav').style.display = (id === 'splash-screen' || id === 'login-screen') ? 'none' : 'flex';
+        if(id === 'main-dashboard') updateDashboard();
+        if(id === 'history-screen') renderHistory();
+    }
+
+    function changeLanguage() {
+        const lang = document.getElementById('langSelect').value;
+        const t = translations[lang];
+        document.getElementById('splash-name').innerText = t.splash;
+        document.getElementById('login-welcome').innerText = t.welcome;
+        document.getElementById('txt-balance-label').innerText = t.balanceL;
+        document.getElementById('txt-income-label').innerText = t.incomeL;
+        document.getElementById('txt-expense-label').innerText = t.expenseL;
+        document.getElementById('btn-save').innerText = t.btnSave;
+        document.getElementById('nav-home').innerText = t.home;
+        document.getElementById('nav-his').innerText = t.his;
+        document.getElementById('nav-set').innerText = t.set;
+        localStorage.setItem('appLang', lang);
+        updateDashboard();
+    }
+
+    function updateDashboard() {
+        let inc = 0, exp = 0;
+        let cats = { 'အစားအသောက်': 0, 'လမ်းစရိတ်': 0, 'အိမ်စရိတ်': 0, 'Skin Care': 0, 'အထွေထွေ': 0 };
+        expenses.forEach(e => {
+            if(e.category === 'မိသားစုပေးငွေ') inc += e.amount;
+            else { exp += e.amount; if(cats[e.category] !== undefined) cats[e.category] += e.amount; else cats['အထွေထွေ'] += e.amount; }
+        });
+        document.getElementById('balance').innerText = (inc - exp).toLocaleString() + " ကျပ်";
+        document.getElementById('totalIncome').innerText = "+" + inc.toLocaleString();
+        document.getElementById('totalExpense').innerText = "-" + exp.toLocaleString();
+        renderChart(Object.values(cats));
+        renderRecent();
+    }
+
+    function renderChart(values) {
+        const ctx = document.getElementById('myChart').getContext('2d');
+        if(myPieChart) myPieChart.destroy();
+        myPieChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels: ['Food', 'Travel', 'Rent', 'Beauty', 'Other'], datasets: [{ data: values, backgroundColor: ['#4caf50', '#2196f3', '#ff9800', '#e91e63', '#9c27b0'] }] },
+            options: { cutout: '70%', plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function openAddModal() { document.getElementById('add-modal').style.display = 'block'; document.getElementById('newDate').valueAsDate = new Date(); }
+    function closeAddModal() { document.getElementById('add-modal').style.display = 'none'; }
+    function selectCat(c) { 
+        document.getElementById('selectedCategory').value = c;
+        document.querySelectorAll('.cat-item').forEach(i => i.classList.remove('selected'));
+        event.currentTarget.classList.add('selected');
+    }
+
+    function saveNewExpense() {
+        const amt = document.getElementById('newAmount').value;
+        if(!amt) return alert("Enter amount");
+        expenses.push({ id: Date.now(), amount: parseInt(amt), category: document.getElementById('selectedCategory').value, date: document.getElementById('newDate').value, name: document.getElementById('newNote').value || document.getElementById('selectedCategory').value });
+        localStorage.setItem('proTracker', JSON.stringify(expenses));
+        updateDashboard(); closeAddModal();
+    }
+
+    function renderRecent() {
+        const list = document.getElementById('expenseList'); list.innerHTML = '';
+        expenses.slice(-3).reverse().forEach(e => {
+            const color = e.category === 'မိသားစုပေးငွေ' ? 'green' : 'red';
+            list.innerHTML += `<li style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #eee;"><span>${e.name}</span><strong style="color:${color}">${e.amount.toLocaleString()}</strong></li>`;
+        });
+    }
+
+    function renderHistory() {
+        const hList = document.getElementById('fullHistoryList'); hList.innerHTML = '';
+        expenses.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(e => {
+            const color = e.category === 'မိသားစုပေးငွေ' ? 'green' : 'red';
+            hList.innerHTML += `<div class="history-item"><div><b>${e.name}</b><br><small>${e.date}</small></div><div style="color:${color}; font-weight:bold;">${e.amount.toLocaleString()}</div></div>`;
+        });
+    }
+
+    function toggleDarkMode() { document.body.classList.toggle('dark-mode'); }
+    function clearAllData() { if(confirm("Clear all?")) { expenses = []; localStorage.clear(); updateDashboard(); } }
+
+    setTimeout(() => navigateTo('login-screen'), 2500);
+    window.onload = () => { if(localStorage.getItem('appLang')) { document.getElementById('langSelect').value = localStorage.getItem('appLang'); changeLanguage(); } };
+</script>
+</body>
+</html>
